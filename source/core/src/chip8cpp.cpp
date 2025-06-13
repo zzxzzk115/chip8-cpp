@@ -7,7 +7,7 @@
 
 namespace
 {
-    const uint8_t FontSet[80] = {
+    const uint8_t FontSet[chip8cpp::constants::FontSetSize] = {
         // Fontset data (0x0 to 0xF)
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
         0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -32,7 +32,8 @@ namespace chip8cpp
 {
     Chip8::Chip8(const Config& config) : m_Config(config) {}
 
-    void Chip8::setConfig(const Config& config) { m_Config = config; }
+    void          Chip8::setConfig(const Config& config) { m_Config = config; }
+    const Config& Chip8::getConfig() const { return m_Config; }
 
     bool Chip8::loadProgram(const std::string& fileName)
     {
@@ -48,11 +49,12 @@ namespace chip8cpp
         file.seekg(0, std::ios::end);
         size_t fileSize = file.tellg();
         file.seekg(0, std::ios::beg);
-        if (fileSize > (4096 - 512)) // 4096 bytes total, 512 bytes reserved for system
+        if (fileSize >
+            (constants::MemorySize - constants::ProgramStartAddress)) // 4096 bytes total, 512 bytes reserved for system
         {
             return false; // Program too large to fit in memory
         }
-        file.read(reinterpret_cast<char*>(&m_Memory[0x200]), fileSize);
+        file.read(reinterpret_cast<char*>(&m_Memory[constants::ProgramStartAddress]), fileSize);
         if (!file)
         {
             return false; // Failed to read the file
@@ -64,10 +66,10 @@ namespace chip8cpp
         std::cout << "Program size: " << fileSize << " bytes" << std::endl;
         std::cout << "Memory contents after loading program:" << std::endl;
         // Print used memory contents for debugging
-        for (size_t i = 0x200; i < 0x200 + fileSize; ++i)
+        for (size_t i = constants::ProgramStartAddress; i < constants::ProgramStartAddress + fileSize; ++i)
         {
-            std::cout << std::format("0x{:02X} ", m_Memory[i]); // Print each byte in hex format
-            if ((i - 0x200 + 1) % 16 == 0)                      // New line every 16 bytes
+            std::cout << std::format("0x{:02X} ", m_Memory[i]);     // Print each byte in hex format
+            if ((i - constants::ProgramStartAddress + 1) % 16 == 0) // New line every 16 bytes
             {
                 std::cout << std::endl;
             }
@@ -100,16 +102,19 @@ namespace chip8cpp
 
 #ifdef DEBUG
         // Debug graphics buffer using CLI ASCII art
-        std::cout << "\033[2J\033[1;1H";
-        std::cout << "Graphics buffer state:" << std::endl;
-        for (size_t y = 0; y < 32; ++y)
+        if (m_Config.printAsciiGraphics)
         {
-            for (size_t x = 0; x < 64; ++x)
+            std::cout << "\033[2J\033[1;1H";
+            std::cout << "Graphics buffer state:" << std::endl;
+            for (size_t y = 0; y < constants::Height; ++y)
             {
-                size_t index = x + y * 64;
-                std::cout << (m_GFX[index] ? '#' : '.'); // Print filled block for pixel on, space for pixel off
+                for (size_t x = 0; x < constants::Width; ++x)
+                {
+                    size_t index = x + y * constants::Width;
+                    std::cout << (m_GFX[index] ? '#' : '.'); // Print filled block for pixel on, space for pixel off
+                }
+                std::cout << std::endl; // New line after each row
             }
-            std::cout << std::endl; // New line after each row
         }
 #endif
     }
@@ -123,14 +128,16 @@ namespace chip8cpp
 
     bool Chip8::getDrawFlag() const { return m_DrawFlag; }
 
+    const uint8_t* Chip8::getGFX() const { return m_GFX; }
+
     void Chip8::reset()
     {
-        m_PC         = 0x200; // Program counter starts at 0x200
-        m_SP         = 0;     // Stack pointer
-        m_I          = 0;     // Index register
-        m_DelayTimer = 0;     // Delay timer
-        m_SoundTimer = 0;     // Sound timer
-        m_DrawFlag   = false; // Reset draw flag
+        m_PC         = constants::ProgramStartAddress; // Program counter starts at 0x200
+        m_SP         = 0;                              // Stack pointer
+        m_I          = 0;                              // Index register
+        m_DelayTimer = 0;                              // Delay timer
+        m_SoundTimer = 0;                              // Sound timer
+        m_DrawFlag   = false;                          // Reset draw flag
 
         std::fill(std::begin(m_V), std::end(m_V), 0);           // Clear registers
         std::fill(std::begin(m_Keys), std::end(m_Keys), 0);     // Clear key states
@@ -141,7 +148,7 @@ namespace chip8cpp
         m_IsValid = false; // Reset validity
 
         // Load font set into memory
-        for (size_t i = 0; i < 80; ++i)
+        for (size_t i = 0; i < constants::FontSetSize; ++i)
         {
             m_Memory[i] = FontSet[i];
         }
@@ -199,7 +206,7 @@ namespace chip8cpp
                     {
                         if ((pixel & (0x80 >> col)) != 0)
                         {
-                            size_t gfxIndex = (x + col + (y + row) * 64) % (64 * 32);
+                            size_t gfxIndex = (x + col + (y + row) * constants::Width) % constants::GfxSize;
                             if (m_GFX[gfxIndex] == 1)
                                 m_V[0xF] = 1;     // Collision detected
                             m_GFX[gfxIndex] ^= 1; // Toggle pixel
@@ -239,7 +246,7 @@ namespace chip8cpp
     void Chip8::loadFontSet()
     {
         // Load the Chip-8 font set into memory
-        for (size_t i = 0; i < 80; ++i)
+        for (size_t i = 0; i < constants::FontSetSize; ++i)
         {
             m_Memory[i] = FontSet[i];
         }

@@ -16,7 +16,11 @@ namespace chip8cpp_app
         void run();
 
     private:
-        chip8cpp::Chip8 m_Chip8;            // Instance of the Chip8 interpreter
-        SDL_Window*     m_Window {nullptr}; // SDL window for rendering
+        void draw();
+
+    private:
+        chip8cpp::Chip8 m_Chip8;              // Instance of the Chip8 interpreter
+        SDL_Window*     m_Window {nullptr};   // SDL window for rendering
+        SDL_Renderer*   m_Renderer {nullptr}; // SDL renderer for drawing
     };
 } // namespace chip8cpp_app
