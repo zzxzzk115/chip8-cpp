@@ -2,11 +2,24 @@
 
 #include <chip8cpp/chip8cpp.hpp>
 
+#include <array>
 #include <cassert>
 #include <iostream>
 
 namespace
 {
+    const std::string                ProgramPathPrefix   = "programs/";
+    const std::array<std::string, 8> BuiltinTestPrograms = {
+        "1-chip8-logo.ch8", // Chip-8 logo
+        "2-ibm-logo.ch8",   // IBM logo
+        "3-corax+.ch8",     // Corax+ demo
+        "4-flags.ch8",      // Flags demo
+        "5-quirks.ch8",     // Quirks demo
+        "6-keypad.ch8",     // Keypad demo
+        "7-beep.ch8",       // Beep sound demo
+        "8-scrolling.ch8"   // Scrolling demo
+    };
+
     // __  __  __  __
     // |1 ||2 ||3 ||C |
     // |4 ||5 ||6 ||D |
@@ -62,6 +75,32 @@ namespace
 
         return SDLK_UNKNOWN; // Should never reach here
     }
+
+#define BEEP_FREQUENCY 440   // Hz
+#define SAMPLE_RATE 44100    // Sample Rate
+#define BEEP_DURATION_MS 200 // Duration
+#define AMPLITUDE 28000      // Amplitude
+
+    void playBeep(SDL_AudioDeviceID dev)
+    {
+        int  samples = (SAMPLE_RATE * BEEP_DURATION_MS) / 1000;
+        auto buffer  = static_cast<int16_t*>(malloc(samples * sizeof(int16_t)));
+        if (!buffer)
+            return;
+
+        int samplesPerCycle = SAMPLE_RATE / BEEP_FREQUENCY;
+        for (int i = 0; i < samples; ++i)
+        {
+            int posInCycle = i % samplesPerCycle;
+            buffer[i]      = (posInCycle < samplesPerCycle / 2) ? AMPLITUDE : -AMPLITUDE;
+        }
+
+        SDL_ClearQueuedAudio(dev);
+        SDL_QueueAudio(dev, buffer, samples * sizeof(int16_t));
+        SDL_PauseAudioDevice(dev, 0);
+
+        free(buffer);
+    }
 } // namespace
 
 namespace chip8cpp_app
@@ -70,14 +109,15 @@ namespace chip8cpp_app
     {
         // Initialize the Chip8 interpreter with configurations
         chip8cpp::Config config {};
-        config.pixelOutline = true; // Enable pixel outlines for better visibility
+        config.pixelOutline  = true; // Enable pixel outlines for better visibility
+        config.soundCallback = [this]() { playBeep(m_AudioDeviceID); };
         m_Chip8.setConfig(config);
 
 #ifdef DEBUG
         (void)argc;
         (void)argv;
 
-        if (!m_Chip8.loadProgram("programs/2-ibm-logo.ch8"))
+        if (!m_Chip8.loadProgram(ProgramPathPrefix + BuiltinTestPrograms[6]))
         {
             std::cerr << "Failed to load default program." << std::endl;
             return false;
@@ -120,13 +160,32 @@ namespace chip8cpp_app
         }
         m_Renderer = SDL_CreateRenderer(m_Window, -1, SDL_RENDERER_ACCELERATED);
 
+        // Initialize audio device for sound output
+        SDL_AudioSpec desiredSpec {};
+        desiredSpec.freq     = SAMPLE_RATE;
+        desiredSpec.format   = AUDIO_S16SYS; // 16-bit signed integer samples
+        desiredSpec.channels = 1;            // Mono audio
+        desiredSpec.samples  = 4096;         // Buffer size
+        desiredSpec.callback = nullptr;      // No callback needed, we will queue audio directly
+        m_AudioDeviceID      = SDL_OpenAudioDevice(nullptr, 0, &desiredSpec, nullptr, 0);
+        if (m_AudioDeviceID == 0)
+        {
+            std::cerr << "Failed to open audio device! SDL_Error: " << SDL_GetError() << std::endl;
+            return false;
+        }
+
         return true;
     }
 
     void App::run()
     {
+        constexpr int targetFPS  = 60;
+        constexpr int frameDelay = 1000 / targetFPS;
+
         while (true)
         {
+            uint32_t frameStart = SDL_GetTicks();
+
             // Handle events
             SDL_Event event;
             while (SDL_PollEvent(&event))
@@ -148,6 +207,13 @@ namespace chip8cpp_app
 
             // Set key states based on user input
             setKeyStates();
+
+            // Frame rate control to achieve 60 FPS
+            int frameTime = SDL_GetTicks() - frameStart;
+            if (frameDelay > frameTime)
+            {
+                SDL_Delay(frameDelay - frameTime);
+            }
         }
     }
 

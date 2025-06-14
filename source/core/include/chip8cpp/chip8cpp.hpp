@@ -1,5 +1,6 @@
 #pragma once
 
+#include <functional>
 #include <string>
 
 namespace chip8cpp
@@ -13,15 +14,17 @@ namespace chip8cpp
         constexpr size_t   StackSize           = 16;             // Size of the stack for Chip-8
         constexpr size_t   GfxSize             = Width * Height; // Size of the graphics buffer (64x32 pixels)
         constexpr size_t   FontSetSize         = 80;             // Size of the font set (5x16 pixels for 16 characters)
+        constexpr size_t   FontHeight          = 8;              // Height of each font character in pixels
         constexpr size_t   RegisterCount       = 16;             // Number of registers in Chip-8
         constexpr size_t   KeyCount            = 16;             // Number of keys in Chip-8 (0-F)
     } // namespace constants
 
     struct Config
     {
-        int  pixelScale {10};       // Scale factor for each pixel in the graphics buffer
-        int  pixelOutlineWidth {1}; // Width of pixel outlines in the graphics buffer
-        bool pixelOutline {false};  // Whether to draw pixel outlines in the graphics buffer
+        int                   pixelScale {10};       // Scale factor for each pixel in the graphics buffer
+        int                   pixelOutlineWidth {1}; // Width of pixel outlines in the graphics buffer
+        bool                  pixelOutline {false};  // Whether to draw pixel outlines in the graphics buffer
+        std::function<void()> soundCallback;         // Callback function for sound events
 
 #ifdef DEBUG
         bool printAsciiGraphics {false}; // Whether to print graphics buffer as ASCII art in the console

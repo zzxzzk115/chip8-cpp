@@ -4,6 +4,7 @@
 #include <fstream>
 #include <iomanip>
 #include <iostream>
+#include <random>
 
 namespace
 {
@@ -215,12 +216,32 @@ namespace chip8cpp
     {
         // Decode the opcode and execute the corresponding instruction
         // https://en.wikipedia.org/wiki/CHIP-8
+        // https://tobiasvl.github.io/blog/write-a-chip-8-emulator/#instructions
+        // https://chip8.gulrak.net/
+        // TODO: Implement opcodes for Super CHIP-8 and XO-CHIP-8
         switch (opcode & 0xF000)
         {
-            case 0x0000: // 0x00E0: Clear the display
-                std::fill(std::begin(m_GFX), std::end(m_GFX), 0);
-                m_DrawFlag = true;
-                m_PC += 2;
+            case 0x0000:
+                switch (opcode & 0x00FF)
+                {
+                    case 0x00E0: // 0x00E0: Clear the display
+                        std::ranges::fill(m_GFX, 0);
+                        m_DrawFlag = true;
+                        m_PC += 2;
+                        break;
+
+                    case 0x00EE: // 0x00EE: Return from subroutine
+                        if (m_SP == 0)
+                        {
+                            std::cerr << "Stack underflow on return from subroutine." << std::endl;
+                            return;
+                        }
+                        m_PC = m_Stack[--m_SP] + 2; // Pop from stack and set PC
+                        break;
+
+                    default:
+                        assert(0); // Unknown opcode
+                }
                 break;
 
             case 0x1000: // 0x1NNN: Jump to address NNN
@@ -230,6 +251,39 @@ namespace chip8cpp
             case 0x2000:                           // 0x2NNN: Call subroutine at NNN
                 m_Stack[m_SP++] = m_PC;            // Push current PC onto stack
                 m_PC            = opcode & 0x0FFF; // Set PC to NNN
+                break;
+
+            case 0x3000: // 0x3XNN: Skip next instruction if VX == NN
+                if (m_V[(opcode & 0x0F00) >> 8] == (opcode & 0x00FF))
+                {
+                    m_PC += 4; // Skip next instruction
+                }
+                else
+                {
+                    m_PC += 2; // Move to next instruction
+                }
+                break;
+
+            case 0x4000: // 0x4XNN: Skip next instruction if VX != NN
+                if (m_V[(opcode & 0x0F00) >> 8] != (opcode & 0x00FF))
+                {
+                    m_PC += 4; // Skip next instruction
+                }
+                else
+                {
+                    m_PC += 2; // Move to next instruction
+                }
+                break;
+
+            case 0x5000: // 0x5XY0: Skip next instruction if VX == VY
+                if (m_V[(opcode & 0x0F00) >> 8] == m_V[(opcode & 0x00F0) >> 4])
+                {
+                    m_PC += 4; // Skip next instruction
+                }
+                else
+                {
+                    m_PC += 2; // Move to next instruction
+                }
                 break;
 
             case 0x6000: // 0x6XNN: Set register VX to NN
@@ -242,10 +296,97 @@ namespace chip8cpp
                 m_PC += 2;
                 break;
 
+            case 0x8000: // 0x8XY0: Set VX to VY
+                switch (opcode & 0x000F)
+                {
+                    case 0x0000: // 0x8XY0: Set VX to VY
+                        m_V[(opcode & 0x0F00) >> 8] = m_V[(opcode & 0x00F0) >> 4];
+                        break;
+
+                    case 0x0001: // 0x8XY1: Set VX to VX OR VY
+                        m_V[(opcode & 0x0F00) >> 8] |= m_V[(opcode & 0x00F0) >> 4];
+                        break;
+
+                    case 0x0002: // 0x8XY2: Set VX to VX AND VY
+                        m_V[(opcode & 0x0F00) >> 8] &= m_V[(opcode & 0x00F0) >> 4];
+                        break;
+
+                    case 0x0003: // 0x8XY3: Set VX to VX XOR VY
+                        m_V[(opcode & 0x0F00) >> 8] ^= m_V[(opcode & 0x00F0) >> 4];
+                        break;
+
+                    case 0x0004: // 0x8XY4: Add VY to VX, set VF if carry
+                    {
+                        uint16_t sum                = m_V[(opcode & 0x0F00) >> 8] + m_V[(opcode & 0x00F0) >> 4];
+                        m_V[0xF]                    = (sum > 255) ? 1 : 0; // Set carry flag
+                        m_V[(opcode & 0x0F00) >> 8] = sum & 0xFF;          // Store result in VX
+                        break;
+                    }
+
+                    case 0x0005: // 0x8XY5: Subtract VY from VX, set VF if no borrow
+                    {
+                        m_V[0xF] = (m_V[(opcode & 0x00F0) >> 4] <= m_V[(opcode & 0x0F00) >> 8]) ? 1 : 0;
+                        m_V[(opcode & 0x0F00) >> 8] -= m_V[(opcode & 0x00F0) >> 4];
+                        break;
+                    }
+
+                    case 0x0006: // 0x8XY6: Shift VX right by 1, set VF to LSB
+                    {
+                        m_V[0xF] = m_V[(opcode & 0x0F00) >> 8] & 0x01; // Store LSB in VF
+                        m_V[(opcode & 0x0F00) >> 8] >>= 1;             // Shift right
+                        break;
+                    }
+
+                    case 0x0007: // 0x8XY7: Set VX to VY - VX, set VF if no borrow
+                    {
+                        m_V[0xF] = (m_V[(opcode & 0x0F00) >> 8] <= m_V[(opcode & 0x00F0) >> 4]) ? 1 : 0;
+                        m_V[(opcode & 0x0F00) >> 8] = m_V[(opcode & 0x00F0) >> 4] - m_V[(opcode & 0x0F00) >> 8];
+                        break;
+                    }
+
+                    case 0x000E: // 0x8XYE: Shift VX left by 1, set VF to MSB
+                    {
+                        m_V[0xF] = (m_V[(opcode & 0x0F00) >> 8] & 0x80) >> 7; // Store MSB in VF
+                        m_V[(opcode & 0x0F00) >> 8] <<= 1;                    // Shift left
+                        break;
+                    }
+
+                    default:
+                        assert(0); // Unknown opcode
+                }
+                m_PC += 2;
+                break;
+
+            case 0x9000: // 0x9XY0: Skip next instruction if VX != VY
+                if (m_V[(opcode & 0x0F00) >> 8] != m_V[(opcode & 0x00F0) >> 4])
+                {
+                    m_PC += 4; // Skip next instruction
+                }
+                else
+                {
+                    m_PC += 2; // Move to next instruction
+                }
+                break;
+
             case 0xA000: // 0xANNN: Set index register I to NNN
                 m_I = opcode & 0x0FFF;
                 m_PC += 2;
                 break;
+
+            case 0xB000: // 0xBNNN: Jump to address NNN + V0
+                m_PC = (opcode & 0x0FFF) + m_V[0];
+                break;
+
+            case 0xC000: // 0xCXNN: Set VX to random byte AND NN
+            {
+                std::random_device                 rd;
+                std::mt19937                       gen(rd());
+                std::uniform_int_distribution<int> dist(0, 255);
+                uint8_t                            randomByte = static_cast<uint8_t>(dist(gen));
+                m_V[(opcode & 0x0F00) >> 8]                   = randomByte & (opcode & 0x00FF);
+                m_PC += 2;
+                break;
+            }
 
             case 0xD000: // 0xDXYN: Draw sprite at (VX, VY) with height N
             {
@@ -273,7 +414,131 @@ namespace chip8cpp
                 break;
             }
 
-                // TODO: Implement other opcodes as needed
+            case 0xE000: // 0xEXNN: Key operations
+            {
+                switch (opcode & 0x00FF)
+                {
+                    case 0x009E: // 0xEX9E: Skip next instruction if key VX is pressed
+                        if (isKeyPressed(static_cast<KeyCode>(m_V[(opcode & 0x0F00) >> 8])))
+                        {
+                            m_PC += 4; // Skip next instruction
+                        }
+                        else
+                        {
+                            m_PC += 2; // Move to next instruction
+                        }
+                        break;
+
+                    case 0x00A1: // 0xEXA1: Skip next instruction if key VX is not pressed
+                        if (!isKeyPressed(static_cast<KeyCode>(m_V[(opcode & 0x0F00) >> 8])))
+                        {
+                            m_PC += 4; // Skip next instruction
+                        }
+                        else
+                        {
+                            m_PC += 2; // Move to next instruction
+                        }
+                        break;
+                    default:
+                        assert(0); // Unknown opcode
+                }
+                break;
+            }
+
+            case 0xF000: // 0xFXNN: Miscellaneous operations
+            {
+                switch (opcode & 0x00FF)
+                {
+                    case 0x0007: // 0xFX07: Set VX to delay timer value
+                        m_V[(opcode & 0x0F00) >> 8] = m_DelayTimer;
+                        m_PC += 2;
+                        break;
+
+                    case 0x000A: // 0xFX0A: Wait for key press, store in VX
+                    {
+                        bool keyPressed = false;
+                        for (size_t i = 0; i < constants::KeyCount; ++i)
+                        {
+                            if (isKeyPressed(static_cast<KeyCode>(i)))
+                            {
+                                m_V[(opcode & 0x0F00) >> 8] = static_cast<uint8_t>(i);
+                                keyPressed                  = true;
+                                break;
+                            }
+                        }
+                        if (!keyPressed)
+                        {
+                            return; // Wait for key press
+                        }
+                        m_PC += 2;
+                        break;
+                    }
+
+                    case 0x0015: // 0xFX15: Set delay timer to VX
+                        m_DelayTimer = m_V[(opcode & 0x0F00) >> 8];
+                        m_PC += 2;
+                        break;
+
+                    case 0x0018: // 0xFX18: Set sound timer to VX
+                        m_SoundTimer = m_V[(opcode & 0x0F00) >> 8];
+                        m_PC += 2;
+                        break;
+
+                    case 0x001E: // 0xFX1E: Add VX to I
+                        m_I += m_V[(opcode & 0x0F00) >> 8];
+                        m_PC += 2;
+                        break;
+
+                    case 0x0029: // 0xFX29: Set I to the location of the sprite for digit VX
+                    {
+                        uint8_t digit = m_V[(opcode & 0x0F00) >> 8];
+                        if (digit < constants::FontSetSize / constants::FontHeight)
+                            m_I = digit * constants::FontHeight; // Each font character is stored in memory sequentially
+                        else
+                            std::cerr << "Invalid digit for sprite location." << std::endl;
+                        m_PC += 2;
+                        break;
+                    }
+
+                    case 0x0033: // 0xFX33: Store BCD representation of VX in memory at I
+                    {
+                        uint8_t value     = m_V[(opcode & 0x0F00) >> 8];
+                        m_Memory[m_I]     = value / 100;       // Hundreds digit
+                        m_Memory[m_I + 1] = (value / 10) % 10; // Tens digit
+                        m_Memory[m_I + 2] = value % 10;        // Ones digit
+                        m_PC += 2;
+                        break;
+                    }
+
+                    case 0x0055: // 0xFX55: Store registers V0 to VX in memory starting at I
+                    {
+                        uint8_t x = (opcode & 0x0F00) >> 8;
+                        for (uint8_t i = 0; i <= x; ++i)
+                        {
+                            m_Memory[m_I + i] = m_V[i];
+                        }
+                        m_I += x + 1; // Move I forward by the number of registers stored
+                        m_PC += 2;
+                        break;
+                    }
+
+                    case 0x0065: // 0xFX65: Read registers V0 to VX from memory starting at I
+                    {
+                        uint8_t x = (opcode & 0x0F00) >> 8;
+                        for (uint8_t i = 0; i <= x; ++i)
+                        {
+                            m_V[i] = m_Memory[m_I + i];
+                        }
+                        m_I += x + 1; // Move I forward by the number of registers read
+                        m_PC += 2;
+                        break;
+                    }
+
+                    default:
+                        assert(0); // Unknown opcode
+                }
+                break;
+            }
 
             default:
                 std::cout << std::format("Unknown opcode: 0x{:02X} at PC: 0x{:04X}", opcode, m_PC) << std::endl;
@@ -292,7 +557,11 @@ namespace chip8cpp
 #ifdef DEBUG
                 std::cout << "BEEP! Sound timer reached zero." << std::endl;
 #endif
-                // TODO: Callback to play sound
+                // Callback to play sound
+                if (m_Config.soundCallback)
+                {
+                    m_Config.soundCallback();
+                }
             }
             --m_SoundTimer;
         }
