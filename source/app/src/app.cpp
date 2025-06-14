@@ -117,7 +117,7 @@ namespace chip8cpp_app
         (void)argc;
         (void)argv;
 
-        if (!m_Chip8.loadProgram(ProgramPathPrefix + BuiltinTestPrograms[6]))
+        if (!m_Chip8.loadProgram(ProgramPathPrefix + BuiltinTestPrograms[1]))
         {
             std::cerr << "Failed to load default program." << std::endl;
             return false;
