@@ -26,7 +26,49 @@ namespace
         0xF0, 0x80, 0xF0, 0x80, 0xF0, // E
         0xF0, 0x80, 0xF0, 0x80, 0x80  // F
     };
-}
+
+    const char* getKeyCodeName(chip8cpp::KeyCode keyCode)
+    {
+        switch (keyCode)
+        {
+            case chip8cpp::KeyCode::eNum1:
+                return "1";
+            case chip8cpp::KeyCode::eNum2:
+                return "2";
+            case chip8cpp::KeyCode::eNum3:
+                return "3";
+            case chip8cpp::KeyCode::eC:
+                return "C";
+            case chip8cpp::KeyCode::eNum4:
+                return "4";
+            case chip8cpp::KeyCode::eNum5:
+                return "5";
+            case chip8cpp::KeyCode::eNum6:
+                return "6";
+            case chip8cpp::KeyCode::eD:
+                return "D";
+            case chip8cpp::KeyCode::eNum7:
+                return "7";
+            case chip8cpp::KeyCode::eNum8:
+                return "8";
+            case chip8cpp::KeyCode::eNum9:
+                return "9";
+            case chip8cpp::KeyCode::eE:
+                return "E";
+            case chip8cpp::KeyCode::eA:
+                return "A";
+            case chip8cpp::KeyCode::eNum0:
+                return "0";
+            case chip8cpp::KeyCode::eB:
+                return "B";
+            case chip8cpp::KeyCode::eF:
+                return "F";
+            default:
+                assert(0);
+                return "";
+        }
+    }
+} // namespace
 
 namespace chip8cpp
 {
@@ -114,6 +156,19 @@ namespace chip8cpp
                     std::cout << (m_GFX[index] ? '#' : '.'); // Print filled block for pixel on, space for pixel off
                 }
                 std::cout << std::endl; // New line after each row
+            }
+        }
+
+        // Debug input key states
+        if (m_Config.printKeyStates)
+        {
+            for (size_t i = 0; i < constants::KeyCount; ++i)
+            {
+                const auto keyCode = static_cast<KeyCode>(i);
+                if (isKeyPressed(keyCode))
+                {
+                    std::cout << std::format("Key {0} is pressed", getKeyCodeName(keyCode)) << std::endl;
+                }
             }
         }
 #endif

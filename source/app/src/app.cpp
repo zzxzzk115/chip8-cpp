@@ -2,7 +2,67 @@
 
 #include <chip8cpp/chip8cpp.hpp>
 
+#include <cassert>
 #include <iostream>
+
+namespace
+{
+    // __  __  __  __
+    // |1 ||2 ||3 ||C |
+    // |4 ||5 ||6 ||D |
+    // |7 ||8 ||9 ||E |
+    // |A ||0 ||B ||F |
+    // __  __  __  __
+    // Map to
+    // __  __  __  __
+    // |1 ||2 ||3 ||4 |
+    //   |Q ||W ||E ||R |
+    //     |A ||S ||D ||F |
+    //       |Z ||X ||C ||V |
+    //       __  __  __  __
+    SDL_Keycode getSDLKeyCode(chip8cpp::KeyCode keyCode)
+    {
+        switch (keyCode)
+        {
+            case chip8cpp::KeyCode::eNum1:
+                return SDLK_1;
+            case chip8cpp::KeyCode::eNum2:
+                return SDLK_2;
+            case chip8cpp::KeyCode::eNum3:
+                return SDLK_3;
+            case chip8cpp::KeyCode::eC:
+                return SDLK_4;
+            case chip8cpp::KeyCode::eNum4:
+                return SDLK_q;
+            case chip8cpp::KeyCode::eNum5:
+                return SDLK_w;
+            case chip8cpp::KeyCode::eNum6:
+                return SDLK_e;
+            case chip8cpp::KeyCode::eD:
+                return SDLK_r;
+            case chip8cpp::KeyCode::eNum7:
+                return SDLK_a;
+            case chip8cpp::KeyCode::eNum8:
+                return SDLK_s;
+            case chip8cpp::KeyCode::eNum9:
+                return SDLK_d;
+            case chip8cpp::KeyCode::eE:
+                return SDLK_f;
+            case chip8cpp::KeyCode::eA:
+                return SDLK_z;
+            case chip8cpp::KeyCode::eNum0:
+                return SDLK_x;
+            case chip8cpp::KeyCode::eB:
+                return SDLK_c;
+            case chip8cpp::KeyCode::eF:
+                return SDLK_v;
+            default:
+                assert(0);
+        }
+
+        return SDLK_UNKNOWN; // Should never reach here
+    }
+} // namespace
 
 namespace chip8cpp_app
 {
@@ -86,12 +146,14 @@ namespace chip8cpp_app
                 draw();
             }
 
-            // TODO: Set key states based on user input
+            // Set key states based on user input
+            setKeyStates();
         }
     }
 
     void App::draw()
     {
+        assert(m_Renderer);
         const chip8cpp::Config& config = m_Chip8.getConfig();
 
         SDL_SetRenderDrawColor(m_Renderer, 0, 0, 0, 255);
@@ -133,5 +195,17 @@ namespace chip8cpp_app
         }
 
         SDL_RenderPresent(m_Renderer);
+    }
+
+    void App::setKeyStates()
+    {
+        // Set key states based on user input
+        const uint8_t* state = SDL_GetKeyboardState(nullptr);
+        for (size_t i = 0; i < chip8cpp::constants::KeyCount; ++i)
+        {
+            chip8cpp::KeyCode keyCode   = static_cast<chip8cpp::KeyCode>(i);
+            bool              isPressed = state[SDL_GetScancodeFromKey(getSDLKeyCode(keyCode))] != 0;
+            m_Chip8.setKeyState(keyCode, isPressed);
+        }
     }
 } // namespace chip8cpp_app

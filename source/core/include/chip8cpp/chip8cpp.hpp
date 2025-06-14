@@ -25,6 +25,7 @@ namespace chip8cpp
 
 #ifdef DEBUG
         bool printAsciiGraphics {false}; // Whether to print graphics buffer as ASCII art in the console
+        bool printKeyStates {true};      // Whether to print key states in the console
 #endif
     };
 

@@ -17,6 +17,7 @@ namespace chip8cpp_app
 
     private:
         void draw();
+        void setKeyStates();
 
     private:
         chip8cpp::Chip8 m_Chip8;              // Instance of the Chip8 interpreter
