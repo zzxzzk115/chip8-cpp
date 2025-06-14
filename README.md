@@ -23,8 +23,8 @@ A CHIP-8 interpreter written in C++ with SDL2. The beginning of my game emulator
 1. Clone the repository:
    ```bash
    git clone https://github.com/zzxzzk115/chip8-cpp.git
-    cd chip8-cpp
-    ```
+   cd chip8-cpp
+   ```
 
 2. Create a build directory:
    ```bash
@@ -33,16 +33,16 @@ A CHIP-8 interpreter written in C++ with SDL2. The beginning of my game emulator
    ```
 3. Configure the project with CMake:
    ```bash
-    cmake ..
-    ```
+   cmake ..
+   ```
 4. Build the project:
    ```bash
    cmake --build .
    ```
 5. Run the emulator:
    ```bash
-    ./chip8-cpp path/to/your/rom.ch8
-    ```
+   ./chip8-cpp path/to/your/rom.ch8
+   ```
 
 ## License
 
