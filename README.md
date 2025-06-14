@@ -41,7 +41,7 @@ A CHIP-8 interpreter written in C++ with SDL2. The beginning of my game emulator
    ```
 5. Run the emulator:
    ```bash
-   ./chip8-cpp path/to/your/rom.ch8
+   ./chip8cpp-app path/to/your/rom.ch8
    ```
 
 ## License
